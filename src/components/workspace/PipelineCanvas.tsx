@@ -44,14 +44,18 @@ export default function PipelineCanvas() {
 
   async function handleToggle(nodeId: string) {
     if (!nodes) return;
-    const res = await fetch("/api/pipeline/toggle", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId, lang }),
-    });
-    const data = await res.json();
-    if (!res.ok) return;
-    setNodes((prev) => prev!.map((n) => (n.id === nodeId ? data.node : n)));
+    try {
+      const res = await fetch("/api/pipeline/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nodeId, lang }),
+      });
+      const data = await res.json();
+      if (!res.ok) return;
+      setNodes((prev) => prev!.map((n) => (n.id === nodeId ? data.node : n)));
+    } catch (err) {
+      console.error("Failed to toggle automation:", err);
+    }
   }
 
   async function handleRun() {
@@ -61,8 +65,15 @@ export default function PipelineCanvas() {
     setSummary(null);
     setRunning(true);
 
-    const res = await fetch("/api/pipeline/run", { method: "POST" });
-    const data: { steps: RunStep[] } = await res.json();
+    let data: { steps: RunStep[] };
+    try {
+      const res = await fetch("/api/pipeline/run", { method: "POST" });
+      data = await res.json();
+    } catch (err) {
+      console.error("Failed to run pipeline:", err);
+      setRunning(false);
+      return;
+    }
 
     data.steps.forEach((step, i) => {
       const t = setTimeout(() => {
