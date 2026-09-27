@@ -1,103 +1,32 @@
-# Flowbase — no-code платформа автоматизації
+# MODA — cinematic lookbook (formerly the Flowbase demo)
 
-Робочий demo-проєкт для портфоліо: SaaS-продукт для no-code автоматизації робочих процесів (pipeline builder). 4 екрани, реальні API-роути (waitlist, стан пайплайну, запуск пайплайну), кастомна 3D-візуалізація графа нод на React Three Fiber замість типового для AI/SaaS абстрактного "orb".
+Deployed at `flowbase.nexuradev.com` (domain kept from the previous demo; content fully
+replaced). This repo no longer hosts the Flowbase no-code-automation concept — it now
+serves a single self-contained static page: a cinematic fashion/e-commerce product
+preview, source-identical to `portfolio-demos/07-moda-lookbook/index.html`.
 
-## Стек
+## How it's served
 
-- **Next.js 16** (App Router, Turbopack) + **TypeScript**
-- **Tailwind CSS 4** (CSS-first `@theme` — токени в `src/app/globals.css`)
-- **React Three Fiber + drei + three.js** — 3D-граф нод у hero: наведення на ноду підсвічує весь її з'єднаний шлях, частинки рухаються вздовж зв'язків, повільне амбієнтне обертання сцени
-- **Framer Motion** — looping-демонстратори у секції фіч, drag-стиль картки в робочому просторі, count-нейтральні мікроанімації (без важких 3D-бібліотек поза hero)
-- Реальний бекенд — Next.js Route Handlers з in-memory сховищем (без БД, як і в проєктах 2–4)
+The Next.js app around it is now just a thin host for the static file, kept only
+because the existing PM2 + Nginx + Cloudflare Tunnel + GitHub Actions pipeline for this
+domain expects a `next build` / `next start` process on port 3213:
 
-## Екрани
+- `public/moda.html` — the actual page (copy of `portfolio-demos/07-moda-lookbook/index.html`).
+- `src/app/route.ts` — a Route Handler at `/` that reads `public/moda.html` and returns
+  it verbatim as `text/html`. It bypasses `layout.tsx`/React rendering entirely, so the
+  static document's own `<html>/<head>/<body>` isn't double-wrapped.
+- `src/app/layout.tsx` — inert passthrough (`return children`), kept only because the
+  App Router expects a root layout file to exist; it's never actually rendered since
+  there's no `page.tsx` anywhere in the app anymore.
+- `next.config.ts` — CSP updated (`media-src`, `style-src`, `font-src`) to allow the
+  page's Cloudflare R2 video assets and Google Fonts; everything else (headers, PM2
+  config, GitHub Actions workflow, `package.json`) left untouched from the Flowbase era.
 
-| Маршрут | Що там |
-|---|---|
-| `/` | Hero з інтерактивним 3D-графом (14 нод, 16 зв'язків, частинки-потоки даних), стрічка інтеграцій, 3 блоки фіч із власними looping-демо, форма раннього доступу |
-| `/workspace` | Робочий простір: 7 карток-автоматизацій на полотні зі SVG-конекторами, вмикання/вимикання кроків, кнопка "Запустити пайплайн" з реальним виконанням |
-| `/pricing` | 3 тарифи, перемикач місяць/рік |
+All of the old Flowbase-specific code (pipeline canvas, workspace, pricing, waitlist
+API routes, 3D graph hero) was deleted — nothing referenced it once `/` stopped needing
+it.
 
-## Чому граф нод, а не "orb"
+## Updating the page
 
-Жанр AI/SaaS переповнений однаковими прийомами — розмиті градієнтні плями, абстрактні іридесцентні сфери, сітки. Замість цього тут **конкретний, функціонально осмислений 3D-об'єкт**: граф пайплайну автоматизації, який одночасно демонструє продукт і виглядає інакше за конкурентів.
-
-- Ноди — фасетовані ікосаедри (не гладкі сфери), кольорові за типом кроку: лайм — тригер, білий — логіка, теракота — дія. Та сама кольорова мова перенесена й у `/workspace` — графік і реальний UI говорять однією мовою.
-- Наведення на ноду (`onPointerOver`/`onPointerOut` — стандартний raycasting-механізм R3F) підсвічує весь з'єднаний шлях і затемнює решту графа — реалізовано через `useMemo` над множиною суміжних ребер, без сторонніх бібліотек для графів.
-- Частинки рухаються вздовж кожного ребра через `curve.getPointAt(t)` на `QuadraticBezierCurve3` — showcase справжнього потоку даних, а не декоративна анімація.
-- Сцена повільно обертається (`useFrame`) для відчуття "живого" продукту, без `OrbitControls` — це hero, а не 3D-редактор.
-
-## Чому це "робочий" проєкт, а не просто фронтенд
-
-- `POST /api/waitlist` — реальна серверна валідація email (regex + normalize), дедуплікація за списком у пам'яті процесу; спроба зареєструвати той самий email двічі повертає "Ви вже у списку очікування" замість дублю.
-- `GET /api/pipeline` — стан 7 автоматизацій робочого простору.
-- `POST /api/pipeline/toggle` — реально вмикає/вимикає крок (тригер вимкнути не можна — сервер поверне 400). Стан зберігається між перезавантаженнями сторінки.
-- `POST /api/pipeline/run` — сервер обчислює порядок виконання топологічним сортуванням зв'язків, повертає для кожного кроку статус (`success`/`skipped` — вимкнені кроки пропускаються) і час виконання. Клієнт лише програє анімацію за вже готовим результатом.
-
-Спробуйте: вимкніть крок у `/workspace`, запустіть пайплайн — картка з вимкненим кроком покаже "пропущено" замість фейкового успіху, бо сервер це реально порахував.
-
-**Немає БД (це demo)** — стан живе в `globalThis` у пам'яті Node-процесу (`src/lib/store.ts`), як і в Mentora та Atlas Ops.
-
-## Ключові компоненти
-
-```
-src/
-├── data/
-│   ├── graph.ts                       # топологія 3D-графа hero (ноди + ребра)
-│   └── pipeline.ts                    # 7 автоматизацій робочого простору + зв'язки
-├── lib/
-│   ├── types.ts
-│   └── store.ts                       # waitlist + мутований стан пайплайну
-├── app/api/
-│   ├── waitlist/route.ts              # POST, серверна валідація email
-│   └── pipeline/
-│       ├── route.ts                   # GET стан
-│       ├── toggle/route.ts            # POST, реальна мутація
-│       └── run/route.ts               # POST, топологічний порядок виконання
-├── components/
-│   ├── hero/
-│   │   ├── GraphScene.tsx             # R3F Canvas, ноди/ребра/частинки, hover-підсвітка шляху
-│   │   └── Hero.tsx                   # dynamic import (ssr:false) + readability-скрим
-│   ├── features/
-│   │   ├── BuilderLoopDemo.tsx        # SVG path-draw loop
-│   │   ├── TriggerLoopDemo.tsx        # подія → блискавка → успіх, loop
-│   │   └── CollabLoopDemo.tsx         # курсори співавторів по колу, loop
-│   └── workspace/
-│       ├── PipelineCanvas.tsx         # оркестратор: fetch, toggle, run-анімація за кроками
-│       ├── AutomationCard.tsx         # картка з тумблером і статусом виконання
-│       └── ConnectorLines.tsx         # SVG-конектори у відсотковій системі координат
-```
-
-## Запуск локально
-
-### Одна команда з кореня репозиторію
-```bash
-npm run prot:flowbase
-```
-Підніме сайт на `http://localhost:3213`.
-
-Або разом з іншими demo-проєктами:
-```bash
-npm run prot
-```
-
-### Вручну
-```bash
-cd portfolio-demos/05-flowbase-automation
-npm install
-npm run dev
-```
-
-### Продакшн-білд
-```bash
-npm run build
-npm run start
-```
-
-## Технічні нотатки
-
-- **`dynamic(..., { ssr: false })` для `GraphScene`**: R3F/three.js торкаються `window`/WebGL і не мають сенсу на сервері; `Hero.tsx` — клієнтський компонент, що ліниво підвантажує сцену тільки в браузері.
-- **`pointer-events-none` на текстовому wrapper hero-секції — важлива деталь, а не косметика**: контейнер заголовка займає `min-h-[86vh]` і `max-w-7xl` — тобто майже всю секцію, навіть у порожніх місцях навколо тексту. Без `pointer-events-none` на ньому (і `pointer-events-auto` вибірково на формі й посиланні) весь цей невидимий блок перехоплював би курсор і наведення на ноди графа під текстом просто не спрацьовувало б.
-- **Readability-скрим замість суцільного затемнення**: `radial-gradient` навколо тексту димить граф лише в центрі, лишаючи його яскравим по краях — граф залишається помітним, текст залишається читабельним.
-- **Framer Motion не анімує `color-mix()`**: у looping-демо фіч колір бекграунду анімується між ключовими кадрами — `color-mix(in srgb, ...)` в масиві `animate` викликає консольне попередження "not an animatable color" і не інтерполюється. Використані буквальні hex-значення там, де колір справді анімується; `color-mix()` лишився тільки в статичних (неанімованих) inline-стилях, де браузер рахує його сам.
-- **Позиціонування карток у `/workspace` — відсоткове, з запасом від країв**: картки мають фіксовану ширину в px (`w-56`), а позиція — у `%` контейнера. Без запасу (мінімум half-card-width у px, перерахований у `%` очікуваної ширини канвасу) крайні картки клипаються межею `overflow-hidden` контейнера — саме так і сталося на першій ітерації з нодою біля лівого краю.
+Edit `portfolio-demos/07-moda-lookbook/index.html` (the canonical source) and copy it
+over `public/moda.html` here, then commit + push to `master` to redeploy.
