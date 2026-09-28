@@ -407,10 +407,17 @@
   .footer-credit a{ color:#0b0b0c; font-weight:600; text-decoration:underline; text-underline-offset:2px; }
 
   @media (max-width:700px){
-    .cats{ grid-template-columns:1fr; }
     .footer-grid{ grid-template-columns:1fr 1fr; }
     .mood-copy{ padding:0 24px; align-items:center; text-align:center; }
     .mood-copy p{ max-width:320px; }
+    .cat-tile-label{ left:14px; bottom:14px; font-size:17px; }
+    .shop-grid{ padding:40px 16px; }
+    .products{ grid-template-columns:repeat(2, 1fr); gap:16px 10px; }
+    .product-info h3{ font-size:13px; }
+    .product-sub{ font-size:11px; margin-bottom:6px; }
+    .price{ font-size:13px; }
+    .product-row{ flex-direction:column; align-items:flex-start; gap:6px; }
+    .add-to-bag{ width:100%; text-align:center; padding:7px 10px; font-size:11.5px; }
   }
 
   /* ---------- v2: language switcher, hero shop-tag, dark footer ---------- */
