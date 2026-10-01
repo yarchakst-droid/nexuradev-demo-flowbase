@@ -517,13 +517,13 @@
   <div class="stage" id="stage">
 
     <video class="media" id="v-colorway-fwd" data-key="colorway" data-dir="forward" muted playsinline preload="auto" aria-hidden="true" src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-1.mp4"></video>
-    <video class="media" id="v-colorway-rev" data-key="colorway" data-dir="reverse" muted playsinline preload="auto" aria-hidden="true" src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-1-reverse.mp4"></video>
-    <video class="media" id="v-scene-fwd" data-key="scene" data-dir="forward" muted playsinline preload="auto" aria-hidden="true" src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-2.mp4"></video>
-    <video class="media" id="v-scene-rev" data-key="scene" data-dir="reverse" muted playsinline preload="auto" aria-hidden="true" src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-2-reverse.mp4"></video>
-    <video class="media" id="v-light-fwd" data-key="light" data-dir="forward" muted playsinline preload="auto" aria-hidden="true" src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-3.mp4"></video>
-    <video class="media" id="v-light-rev" data-key="light" data-dir="reverse" muted playsinline preload="auto" aria-hidden="true" src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-3-reverse.mp4"></video>
-    <video class="media" id="v-fullLook-fwd" data-key="fullLook" data-dir="forward" muted playsinline preload="auto" aria-hidden="true" src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-4.mp4"></video>
-    <video class="media" id="v-fullLook-rev" data-key="fullLook" data-dir="reverse" muted playsinline preload="auto" aria-hidden="true" src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-4-reverse.mp4"></video>
+    <video class="media" id="v-colorway-rev" data-key="colorway" data-dir="reverse" muted playsinline preload="none" aria-hidden="true" data-src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-1-reverse.mp4"></video>
+    <video class="media" id="v-scene-fwd" data-key="scene" data-dir="forward" muted playsinline preload="none" aria-hidden="true" data-src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-2.mp4"></video>
+    <video class="media" id="v-scene-rev" data-key="scene" data-dir="reverse" muted playsinline preload="none" aria-hidden="true" data-src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-2-reverse.mp4"></video>
+    <video class="media" id="v-light-fwd" data-key="light" data-dir="forward" muted playsinline preload="none" aria-hidden="true" data-src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-3.mp4"></video>
+    <video class="media" id="v-light-rev" data-key="light" data-dir="reverse" muted playsinline preload="none" aria-hidden="true" data-src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-3-reverse.mp4"></video>
+    <video class="media" id="v-fullLook-fwd" data-key="fullLook" data-dir="forward" muted playsinline preload="none" aria-hidden="true" data-src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-4.mp4"></video>
+    <video class="media" id="v-fullLook-rev" data-key="fullLook" data-dir="reverse" muted playsinline preload="none" aria-hidden="true" data-src="https://pub-86dc5b5484314368ac5436a674b0d919.r2.dev/designs/video-4-reverse.mp4"></video>
 
     <div class="hero" id="hero">
       <h1 id="heroTitle"><span data-i18n="hero.word1">The</span> <span data-i18n="hero.word2">perfect</span> <span data-i18n="hero.word3">fit</span></h1>
@@ -1012,17 +1012,61 @@ window.usiTf = function(key, vars){
     watchReady(CONTROLS[key].revEl, key, 'reverse');
   });
 
+  /* ---------- lazy warm-up for non-base videos ----------
+     Only the base (colorway/forward) video loads eagerly. On mobile Safari,
+     fetching and decoding all 8 clips at once at page load can starve the
+     base video of bandwidth/decoder resources and leave the stage black
+     forever. The rest load one at a time, staggered, once the base video
+     is already showing. */
+  var lazyVideos = Array.prototype.slice.call(document.querySelectorAll('video.media[data-src]'));
+  var lazyStarted = false;
+  function warmUpLazyVideos(){
+    if (lazyStarted) return;
+    lazyStarted = true;
+    var i = 0;
+    function next(){
+      if (i >= lazyVideos.length) return;
+      var el = lazyVideos[i];
+      i += 1;
+      el.src = el.getAttribute('data-src');
+      el.setAttribute('preload', 'auto');
+      try { el.load(); } catch(e){}
+      window.setTimeout(next, 200);
+    }
+    next();
+  }
+
   function initBase(){
     var el = CONTROLS.colorway.fwdEl;
+    var watchdogId = null;
+    function clearWatchdog(){
+      if (watchdogId){ window.clearTimeout(watchdogId); watchdogId = null; }
+    }
     function ready(){
+      clearWatchdog();
+      hideNotice();
       try { el.currentTime = 0; } catch(e){}
       el.pause();
       showVideo(el);
       state.playback = 'ready';
       announce(window.usiT('announce.ready'));
+      warmUpLazyVideos();
+    }
+    function armWatchdog(){
+      watchdogId = window.setTimeout(function(){
+        showNotice(window.usiT('notice.error.generic'), function(){
+          el.removeEventListener('loadeddata', ready);
+          try { el.load(); } catch(e){}
+          el.addEventListener('loadeddata', ready, { once:true });
+          armWatchdog();
+        });
+      }, 8000);
     }
     if (el.readyState >= 2){ ready(); }
-    else { el.addEventListener('loadeddata', ready, { once:true }); }
+    else {
+      el.addEventListener('loadeddata', ready, { once:true });
+      armWatchdog();
+    }
   }
   initBase();
 
