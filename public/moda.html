@@ -1020,6 +1020,24 @@ window.usiTf = function(key, vars){
      is already showing. */
   var lazyVideos = Array.prototype.slice.call(document.querySelectorAll('video.media[data-src]'));
   var lazyStarted = false;
+
+  /* ---------- iOS preload nudge ----------
+     A <video preload="auto"> that nothing ever plays is not reliably fetched
+     by mobile Safari in practice - it treats the hint as metadata-only and
+     can leave the element at readyState 0 indefinitely (confirmed against a
+     real iPhone: the CDN serves the file fine, range requests included - the
+     byte request for it was simply never made). Every video here is
+     muted+playsinline, which iOS allows to autoplay via script without a
+     user gesture, so an explicit play() - reverted the instant a frame
+     exists - forces the real fetch to start instead of waiting on a preload
+     hint that may never fire. */
+  function kickstart(el){
+    try { el.load(); } catch(e){}
+    var p;
+    try { p = el.play(); } catch(e){ return; }
+    if (p && typeof p.catch === 'function') p.catch(function(){});
+  }
+
   function warmUpLazyVideos(){
     if (lazyStarted) return;
     lazyStarted = true;
@@ -1030,7 +1048,15 @@ window.usiTf = function(key, vars){
       i += 1;
       el.src = el.getAttribute('data-src');
       el.setAttribute('preload', 'auto');
-      try { el.load(); } catch(e){}
+      function settle(){
+        el.removeEventListener('loadeddata', settle);
+        el.removeEventListener('canplay', settle);
+        try { el.pause(); } catch(e){}
+        try { el.currentTime = 0; } catch(e){}
+      }
+      el.addEventListener('loadeddata', settle, { once:true });
+      el.addEventListener('canplay', settle, { once:true });
+      kickstart(el);
       window.setTimeout(next, 200);
     }
     next();
@@ -1039,10 +1065,18 @@ window.usiTf = function(key, vars){
   function initBase(){
     var el = CONTROLS.colorway.fwdEl;
     var watchdogId = null;
+    var settled = false;
     function clearWatchdog(){
       if (watchdogId){ window.clearTimeout(watchdogId); watchdogId = null; }
     }
+    function detachReady(){
+      el.removeEventListener('loadeddata', ready);
+      el.removeEventListener('canplay', ready);
+    }
     function ready(){
+      if (settled) return;
+      settled = true;
+      detachReady();
       clearWatchdog();
       hideNotice();
       try { el.currentTime = 0; } catch(e){}
@@ -1055,9 +1089,11 @@ window.usiTf = function(key, vars){
     function armWatchdog(){
       watchdogId = window.setTimeout(function(){
         showNotice(window.usiT('notice.error.generic'), function(){
-          el.removeEventListener('loadeddata', ready);
-          try { el.load(); } catch(e){}
+          detachReady();
+          settled = false;
+          kickstart(el);
           el.addEventListener('loadeddata', ready, { once:true });
+          el.addEventListener('canplay', ready, { once:true });
           armWatchdog();
         });
       }, 8000);
@@ -1065,6 +1101,8 @@ window.usiTf = function(key, vars){
     if (el.readyState >= 2){ ready(); }
     else {
       el.addEventListener('loadeddata', ready, { once:true });
+      el.addEventListener('canplay', ready, { once:true });
+      kickstart(el);
       armWatchdog();
     }
   }
