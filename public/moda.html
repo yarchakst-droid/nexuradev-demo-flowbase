@@ -375,9 +375,12 @@
   .shop-grid{ padding:64px 32px; max-width:1280px; margin:0 auto; }
   .shop-grid-head{ display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:28px; }
   .shop-grid-head h2{ font-size:clamp(24px,3vw,32px); font-weight:700; letter-spacing:-0.02em; margin:0; }
-  .filter-pills{ display:flex; gap:8px; }
-  .pill{ padding:8px 16px; border-radius:999px; border:1px solid #d8d8dc; background:#fff; color:#0b0b0c; font-size:13px; font-weight:600; cursor:pointer; transition:background 150ms, color 150ms, border-color 150ms; }
-  .pill.active, .pill:hover, .pill:focus-visible{ background:#0b0b0c; color:#fff; border-color:#0b0b0c; }
+  .filter-pills{ position:relative; display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none; }
+  .filter-pills::-webkit-scrollbar{ display:none; }
+  .pill-slider{ position:absolute; top:0; left:0; height:100%; border-radius:999px; background:#0b0b0c; opacity:0; transition:transform 320ms cubic-bezier(.16,1,.3,1), width 320ms cubic-bezier(.16,1,.3,1); z-index:0; pointer-events:none; }
+  .pill{ position:relative; z-index:1; flex:0 0 auto; padding:8px 16px; border-radius:999px; border:1px solid #d8d8dc; background:transparent; color:#0b0b0c; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; transition:color 150ms, border-color 150ms; }
+  .pill.active{ color:#fff; border-color:transparent; }
+  .pill:hover:not(.active), .pill:focus-visible:not(.active){ border-color:#0b0b0c; }
 
   .products{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:28px 20px; }
   .product{ display:flex; flex-direction:column; }
@@ -418,6 +421,9 @@
     .mood-copy p{ max-width:320px; }
     .cat-tile-label{ left:14px; bottom:14px; font-size:17px; }
     .shop-grid{ padding:40px 16px; }
+    .shop-grid-head{ gap:12px; }
+    .filter-pills{ gap:6px; margin:0 -16px; padding:0 16px; }
+    .pill{ padding:7px 14px; font-size:12.5px; }
     .products{ grid-template-columns:repeat(2, 1fr); gap:16px 10px; }
     .product-info h3{ font-size:13px; }
     .product-sub{ font-size:11px; margin-bottom:6px; }
@@ -588,6 +594,7 @@
       <div class="shop-grid-head">
         <h2 data-i18n="shop.heading">New &amp; Featured</h2>
         <div class="filter-pills" role="group" aria-label="Filter by category">
+          <span class="pill-slider" aria-hidden="true"></span>
           <button type="button" class="pill active" data-filter="all" data-i18n="filter.all">All</button>
           <button type="button" class="pill" data-filter="men" data-i18n="filter.men">Men</button>
           <button type="button" class="pill" data-filter="women" data-i18n="filter.women">Women</button>
@@ -1547,6 +1554,28 @@ window.usiTf = function(key, vars){
 
   var pills = Array.prototype.slice.call(document.querySelectorAll('.pill'));
   var products = Array.prototype.slice.call(document.querySelectorAll('.product'));
+  var pillsTrack = document.querySelector('.filter-pills');
+  var pillSlider = pillsTrack ? pillsTrack.querySelector('.pill-slider') : null;
+
+  function positionPillSlider(immediate){
+    if (!pillsTrack || !pillSlider) return;
+    var active = pillsTrack.querySelector('.pill.active');
+    if (!active) { pillSlider.style.opacity = '0'; return; }
+    if (immediate) pillSlider.style.transition = 'none';
+    pillSlider.style.opacity = '1';
+    pillSlider.style.width = active.offsetWidth + 'px';
+    pillSlider.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+    if (immediate) {
+      void pillSlider.offsetHeight;
+      pillSlider.style.transition = '';
+    }
+  }
+
+  var pillResizeRaf = null;
+  window.addEventListener('resize', function(){
+    if (pillResizeRaf) return;
+    pillResizeRaf = requestAnimationFrame(function(){ pillResizeRaf = null; positionPillSlider(true); });
+  }, { passive: true });
 
   function applyFilter(filter){
     products.forEach(function(p){
@@ -1555,6 +1584,7 @@ window.usiTf = function(key, vars){
     pills.forEach(function(p){
       p.classList.toggle('active', p.getAttribute('data-filter') === filter);
     });
+    positionPillSlider();
   }
 
   Array.prototype.slice.call(document.querySelectorAll('[data-filter]')).forEach(function(el){
@@ -1728,6 +1758,7 @@ window.usiTf = function(key, vars){
     Array.prototype.slice.call(document.querySelectorAll('.lang-btn')).forEach(function(btn){
       btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
     });
+    positionPillSlider(true);
     renderBag();
   }
 
